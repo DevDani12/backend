@@ -1,38 +1,62 @@
-import express from "express";
-import mongoose from "mongoose";
-import dotenv from "dotenv";
-import cors from "cors";
+require("dotenv").config();
 
-// Load environment variables
-dotenv.config();
+const app = require("./src/app");
+const connectDB = require("./src/config/db");
+const { execSync } = require("child_process");
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const startServer = async () => {
+  await connectDB();
 
-// 1. Hardcoded Local MongoDB Connection Test
-const MONGO_URI =
-  process.env.MONGO_URI || "mongodb://127.0.0.1:27017/merkato_store";
+  const PORT = process.env.PORT || 5000;
+  const NODE_ENV = process.env.NODE_ENV || "development";
 
-console.log("⏳ Attempting to connect to MongoDB...");
+  const listen = () => {
+    const server = app.listen(PORT, () => {
+      console.log(`==================================================`);
+      console.log(` 🛡️  Merkato Security Engine Active`);
+      console.log(` 🚀 Server Listening on Port: ${PORT}`);
+      console.log(` ⚙️  Environment Mode: ${NODE_ENV}`);
+      console.log(`==================================================`);
+    });
 
-mongoose
-  .connect(MONGO_URI)
-  .then((conn) => {
-    console.log(
-      `🍃 MongoDB Connected Successfully to: ${conn.connection.host}`,
-    );
-  })
-  .catch((error) => {
-    console.error(`❌ MongoDB Connection Failed: ${error.message}`);
-  });
+    server.on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        console.error(`⚠️  Port ${PORT} is in use. Attempting to free it...`);
+        try {
+          const result = execSync(
+            `netstat -ano | findstr :${PORT}`,
+            { encoding: "utf8", timeout: 5000 },
+          );
+          const lines = result.trim().split("\n");
+          for (const line of lines) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length >= 5 && parts[1] === `0.0.0.0:${PORT}`) {
+              const pid = parts[parts.length - 1];
+              execSync(`taskkill /F /PID ${pid}`, { timeout: 3000 });
+              console.log(`✅ Killed process ${pid}. Restarting on port ${PORT}...`);
+              break;
+            }
+          }
+        } catch (killErr) {
+          console.error("❌ Could not auto-free the port. Manually run:");
+          console.error(`   netstat -ano | findstr :${PORT}`);
+          console.error("   then: taskkill /F /PID <PID>");
+          return process.exit(1);
+        }
+        server.close();
+        setTimeout(listen, 1000);
+      }
+    });
 
-// 2. Simple Route
-app.get("/", (req, res) => {
-  res.send("Server is alive!");
-});
+    process.on("unhandledRejection", (err) => {
+      console.error(`💥 CRITICAL: Unhandled Promise Rejection: ${err.message}`);
+      server.close(() => {
+        process.exit(1);
+      });
+    });
+  };
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+  listen();
+};
+
+startServer();
