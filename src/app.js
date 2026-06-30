@@ -8,6 +8,7 @@ const path = require("path");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const productRoutes = require("./routes/productRoutes");
+const orderRoutes = require("./routes/orderRoutes");
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/products", productRoutes);
+app.use("/api/v1/orders", orderRoutes);
 
 // 4. Global 404 Fallback Handlers
 app.use((req, res, next) => {
